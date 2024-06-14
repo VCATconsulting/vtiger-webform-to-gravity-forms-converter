@@ -1,0 +1,8 @@
+*.css.map
+composer.lock
+package-lock.json
+yarn.lock
+/node_modules
+/vendor/*
+!/vendor/autoload.php
+!/vendor/composer
