@@ -10,7 +10,7 @@
  * Plugin Name: Vtiger Webform to Gravity Forms Converter
  * Plugin URI: https://github.com/VCATconsulting/vtiger-webform-to-gravity-forms-converter
  * Description: Converts Vtiger Webforms to Gravity Forms
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: VCAT Consulting GmbH - Team WordPress
  * Author URI: https://www.vcat.de
  * Text Domain: vtiger-webform-to-gravity-forms-converter
@@ -18,7 +18,7 @@
  * License URI: http://www.gnu.org/licenses/gpl-3.0.txt
  */
 
-define( 'VWTGFC_VERSION', '1.0.0' );
+define( 'VWTGFC_VERSION', '1.0.1' );
 define( 'VWTGFC_FILE', __FILE__ );
 define( 'VWTGFC_PATH', plugin_dir_path( VWTGFC_FILE ) );
 define( 'VWTGFC_URL', plugin_dir_url( VWTGFC_FILE ) );
