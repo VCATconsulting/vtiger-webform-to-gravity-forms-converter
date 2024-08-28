@@ -2,10 +2,10 @@
 /**
  * Create the Settings Page for the plugin.
  *
- * @package VWTGFC\Helpers
+ * @package VWTGF_CONVERTER\Helpers
  */
 
-namespace VWTGFC\Helpers;
+namespace VWTGF_CONVERTER\Helpers;
 
 /**
  * Class SettingsPage

@@ -2,10 +2,10 @@
 /**
  * Class to post Gravity Forms form to Vtiger.
  *
- * @package VWTGFC\Actions
+ * @package VWTGF_CONVERTER\Actions
  */
 
-namespace VWTGFC\Actions;
+namespace VWTGF_CONVERTER\Actions;
 
 use GFFormsModel;
 

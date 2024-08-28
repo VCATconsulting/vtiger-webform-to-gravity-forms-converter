@@ -2,10 +2,10 @@
 /**
  * Class to convert a Vtiger Webform into a Gravity Forms form.
  *
- * @package VWTGFC\Actions
+ * @package VWTGF_CONVERTER\Actions
  */
 
-namespace VWTGFC\Actions;
+namespace VWTGF_CONVERTER\Actions;
 
 use DOMDocument;
 use GFAPI;
@@ -33,17 +33,31 @@ class ConvertWebform {
 		/*
 		 * Check if the nonce is valid.
 		 */
-		if ( ! isset( $_REQUEST['vwtgf_converter_convert_webform'] ) && ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_REQUEST['vwtgf_converter_convert_webform'] ) ), 'vwtgf_converter_convert_webform' ) ) {
+		if ( ! isset( $_REQUEST['vwtgf_converter_convert_webform'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_REQUEST['vwtgf_converter_convert_webform'] ) ), 'vwtgf_converter_convert_webform' ) ) {
 			wp_safe_redirect( admin_url( 'admin.php?page=vwtgf-converter&status=error' ) );
 			exit;
 		}
 
 		/*
+		 * Get the raw HTML from the request and unslash it.
+		 * Remove all script tags to prevent XSS.
+		 * HTML is not stored in the Database or outputted to the user.
+		 */
+		$raw_html   = ( isset( $_REQUEST['webform'] ) && ! empty( $_REQUEST['webform'] ) ) ? preg_replace( '@<(script)[^>]*?>.*?</\\1>@si', '', wp_unslash( $_REQUEST['webform'] ) ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+
+		/*
+		 * Clean and santize the HTML.
+		 */
+		$clean_html = $this->vwtgf_converter_sanitize_webform_input( $raw_html );
+
+		/*
 		 * Check if form is set and not empty.
 		 */
-		if ( isset( $_REQUEST['webform'] ) && ! empty( $_REQUEST['webform'] ) ) {
-			$html_string = preg_replace( '@<(script)[^>]*?>.*?</\\1>@si', '', wp_unslash( $_REQUEST['webform'] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-			$html_array  = $this->vwtgf_converter_html_to_nested_array( $html_string );
+		if ( ! empty( $clean_html ) ) {
+				/*
+			 * Convert HTML to a nested array.
+			 */
+			$html_array = $this->vwtgf_converter_html_to_nested_array( $clean_html );
 
 			/*
 			 * Convert HTML Array to a Gravity Forms Form Object.
@@ -102,6 +116,86 @@ class ConvertWebform {
 			wp_safe_redirect( admin_url( 'admin.php?page=vwtgf-converter&status=error' ) );
 			exit;
 		}
+	}
+
+	/**
+	 * Escape HTML content but keep the tags intact.
+	 *
+	 * @param string $html The HTML string to escape.
+	 * @return string Escaped HTML.
+	 */
+	public function vwtgf_converter_sanitize_webform_input( $html ) {
+		$allowed_tags = [
+			'meta'     => [
+				'http-equiv' => [],
+				'content'    => [],
+			],
+			'form'     => [
+				'id'             => [],
+				'name'           => [],
+				'action'         => [],
+				'method'         => [],
+				'accpet-charset' => [],
+				'enctype'        => [],
+			],
+			'input'    => [
+				'type'        => [],
+				'name'        => [],
+				'value'       => [],
+				'placeholder' => [],
+				'required'    => [],
+				'multiple'    => [],
+				'checked'     => [],
+				'selected'    => [],
+				'data-label'  => [],
+			],
+			'table'    => [],
+			'tbody'    => [],
+			'tr'       => [],
+			'td'       => [],
+			'th'       => [],
+			'label'    => [
+				'for' => [],
+			],
+			'textarea' => [
+				'name'        => [],
+				'placeholder' => [],
+				'required'    => [],
+			],
+
+			'div'      => [
+				'id'    => [],
+				'class' => [],
+			],
+			'select'   => [
+				'name'       => [],
+				'id'         => [],
+				'class'      => [],
+				'data-label' => [],
+				'hidden'     => [],
+
+			],
+			'option'   => [
+				'value'    => [],
+				'selected' => [],
+			],
+		];
+
+		/**
+		 * Filter the allowed tags for the webform sanitization.
+		 *
+		 * @param array $allowed_tags The allowed tags.
+		 */
+		$allowed_tags = apply_filters( 'vwtgf_converter_allowd_tags', $allowed_tags );
+
+		/**
+		 * Filter the allowed custom html for the webform sanitization.
+		 *
+		 * @param array $html The allowed tags.
+		 */
+		$html = apply_filters( 'vwtgf_converter_custom_webform_sanitization', $html );
+
+		return wp_kses( $html, $allowed_tags );
 	}
 
 	/**

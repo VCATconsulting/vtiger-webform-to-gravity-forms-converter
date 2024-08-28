@@ -2,7 +2,7 @@
 /**
  * Vtiger Webform to Gravity Forms Converter
  *
- * @package vwtgfc
+ * @package vwtgf_converter
  * @author  VCAT Consulting GmbH - Team WordPress
  * @license GPLv3
  *
@@ -10,7 +10,7 @@
  * Plugin Name: Vtiger Webform to Gravity Forms Converter
  * Plugin URI: https://github.com/VCATconsulting/vtiger-webform-to-gravity-forms-converter
  * Description: Converts Vtiger Webforms to Gravity Forms
- * Version: 1.0.1
+ * Version: 1.1.0
  * Author: VCAT Consulting GmbH - Team WordPress
  * Author URI: https://www.vcat.de
  * Text Domain: vtiger-webform-to-gravity-forms-converter
@@ -18,10 +18,15 @@
  * License URI: http://www.gnu.org/licenses/gpl-3.0.txt
  */
 
-define( 'VWTGFC_VERSION', '1.0.1' );
-define( 'VWTGFC_FILE', __FILE__ );
-define( 'VWTGFC_PATH', plugin_dir_path( VWTGFC_FILE ) );
-define( 'VWTGFC_URL', plugin_dir_url( VWTGFC_FILE ) );
+// Exit if accessed directly.
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+define( 'VWTGF_CONVERTER_VERSION', '1.1.0' );
+define( 'VWTGF_CONVERTER_FILE', __FILE__ );
+define( 'VWTGF_CONVERTER_PATH', plugin_dir_path( VWTGF_CONVERTER_FILE ) );
+define( 'VWTGF_CONVERTER_URL', plugin_dir_url( VWTGF_CONVERTER_FILE ) );
 
 // The pre_init functions check the compatibility of the plugin and calls the init function, if check were successful.
 vwtgf_converter_pre_init();
@@ -45,7 +50,7 @@ function vwtgf_converter_pre_init() {
 		return;
 	}
 
-	if ( file_exists( VWTGFC_PATH . 'composer.json' ) && ! file_exists( VWTGFC_PATH . 'vendor/autoload.php' ) ) {
+	if ( file_exists( VWTGF_CONVERTER_PATH . 'composer.json' ) && ! file_exists( VWTGF_CONVERTER_PATH . 'vendor/autoload.php' ) ) {
 		add_action( 'admin_notices', 'vwtgf_converter_autoloader_missing' );
 
 		/*
@@ -53,7 +58,7 @@ function vwtgf_converter_pre_init() {
 		*/
 		return;
 	} else {
-		$autoloader = VWTGFC_PATH . 'vendor/autoload.php';
+		$autoloader = VWTGF_CONVERTER_PATH . 'vendor/autoload.php';
 
 		if ( is_readable( $autoloader ) ) {
 			include $autoloader;
@@ -63,7 +68,7 @@ function vwtgf_converter_pre_init() {
 	/*
 	* If all checks were succcessful, load the plugin.
 	*/
-	require_once VWTGFC_PATH . 'lib/load.php';
+	require_once VWTGF_CONVERTER_PATH . 'lib/load.php';
 }
 
 /**

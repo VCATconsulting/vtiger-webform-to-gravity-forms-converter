@@ -7,7 +7,7 @@ $baseDir = dirname($vendorDir);
 
 return array(
     'Composer\\InstalledVersions' => $vendorDir . '/composer/InstalledVersions.php',
-    'VWTGFC\\Actions\\ConvertWebform' => $baseDir . '/lib/Actions/ConvertWebform.php',
-    'VWTGFC\\Actions\\PostToVtiger' => $baseDir . '/lib/Actions/PostToVtiger.php',
-    'VWTGFC\\Helpers\\SettingsPage' => $baseDir . '/lib/Helpers/SettingsPage.php',
+    'VWTGF_CONVERTER\\Actions\\ConvertWebform' => $baseDir . '/lib/Actions/ConvertWebform.php',
+    'VWTGF_CONVERTER\\Actions\\PostToVtiger' => $baseDir . '/lib/Actions/PostToVtiger.php',
+    'VWTGF_CONVERTER\\Helpers\\SettingsPage' => $baseDir . '/lib/Helpers/SettingsPage.php',
 );

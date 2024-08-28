@@ -1,5 +1,5 @@
 {
-    "name": "vwtgfc/vtiger-webform-to-gravity-forms-converter",
+    "name": "vwtgf_converter/vtiger-webform-to-gravity-forms-converter",
     "description": "Converts Vtiger Webforms to Gravity Forms.",
     "require": {
         "php": ">=7.4"
@@ -21,7 +21,7 @@
     "minimum-stability": "stable",
     "autoload": {
         "psr-4": {
-            "VWTGFC\\": "lib/"
+            "VWTGF_CONVERTER\\": "lib/"
         }
     },
     "config": {

@@ -6,5 +6,5 @@ $vendorDir = dirname(__DIR__);
 $baseDir = dirname($vendorDir);
 
 return array(
-    'VWTGFC\\' => array($baseDir . '/lib'),
+    'VWTGF_CONVERTER\\' => array($baseDir . '/lib'),
 );

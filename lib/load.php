@@ -2,14 +2,14 @@
 /**
  * Main plugin file to load other classes
  *
- * @package VWTGFC
+ * @package VWTGF_CONVERTER
  */
 
-namespace VWTGFC;
+namespace VWTGF_CONVERTER;
 
-use VWTGFC\Actions\ConvertWebform;
-use VWTGFC\Actions\PostToVtiger;
-use VWTGFC\Helpers\SettingsPage;
+use VWTGF_CONVERTER\Actions\ConvertWebform;
+use VWTGF_CONVERTER\Actions\PostToVtiger;
+use VWTGF_CONVERTER\Helpers\SettingsPage;
 
 /**
  * Init function of the plugin
@@ -41,4 +41,4 @@ function init() {
 	}
 }
 
-add_action( 'plugins_loaded', 'VWTGFC\init' );
+add_action( 'plugins_loaded', 'VWTGF_CONVERTER\init' );

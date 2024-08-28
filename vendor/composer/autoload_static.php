@@ -4,17 +4,17 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInit090e6176e2da54cdad78652d0ff40982
+class ComposerStaticInitabd589ba55a781bf91b2a9e9d3d6fe3a
 {
     public static $prefixLengthsPsr4 = array (
         'V' => 
         array (
-            'VWTGFC\\' => 7,
+            'VWTGF_CONVERTER\\' => 16,
         ),
     );
 
     public static $prefixDirsPsr4 = array (
-        'VWTGFC\\' => 
+        'VWTGF_CONVERTER\\' => 
         array (
             0 => __DIR__ . '/../..' . '/lib',
         ),
@@ -22,17 +22,17 @@ class ComposerStaticInit090e6176e2da54cdad78652d0ff40982
 
     public static $classMap = array (
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
-        'VWTGFC\\Actions\\ConvertWebform' => __DIR__ . '/../..' . '/lib/Actions/ConvertWebform.php',
-        'VWTGFC\\Actions\\PostToVtiger' => __DIR__ . '/../..' . '/lib/Actions/PostToVtiger.php',
-        'VWTGFC\\Helpers\\SettingsPage' => __DIR__ . '/../..' . '/lib/Helpers/SettingsPage.php',
+        'VWTGF_CONVERTER\\Actions\\ConvertWebform' => __DIR__ . '/../..' . '/lib/Actions/ConvertWebform.php',
+        'VWTGF_CONVERTER\\Actions\\PostToVtiger' => __DIR__ . '/../..' . '/lib/Actions/PostToVtiger.php',
+        'VWTGF_CONVERTER\\Helpers\\SettingsPage' => __DIR__ . '/../..' . '/lib/Helpers/SettingsPage.php',
     );
 
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInit090e6176e2da54cdad78652d0ff40982::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInit090e6176e2da54cdad78652d0ff40982::$prefixDirsPsr4;
-            $loader->classMap = ComposerStaticInit090e6176e2da54cdad78652d0ff40982::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInitabd589ba55a781bf91b2a9e9d3d6fe3a::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInitabd589ba55a781bf91b2a9e9d3d6fe3a::$prefixDirsPsr4;
+            $loader->classMap = ComposerStaticInitabd589ba55a781bf91b2a9e9d3d6fe3a::$classMap;
 
         }, null, ClassLoader::class);
     }
