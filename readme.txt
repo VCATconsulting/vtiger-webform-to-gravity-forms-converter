@@ -4,7 +4,7 @@ Contributors: VCATconsulting, shogathu, nida78
 Requires at least: 5.0
 Tested up to: 6.6
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -73,6 +73,10 @@ Yes, you can re-add the field by pasting the Vtiger webform code again and click
 Or you can add the field manually in the Gravity Forms editor, but keep in mind to set the admin label to the right value.
 
 == Changelog ==
+
+= 1.1.1 =
+
+* Fix some wording
 
 = 1.1.0 =
 

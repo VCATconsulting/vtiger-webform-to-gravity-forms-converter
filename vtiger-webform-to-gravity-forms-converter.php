@@ -10,7 +10,7 @@
  * Plugin Name: Vtiger Webform to Gravity Forms Converter
  * Plugin URI: https://github.com/VCATconsulting/vtiger-webform-to-gravity-forms-converter
  * Description: Converts Vtiger Webforms to Gravity Forms
- * Version: 1.1.0
+ * Version: 1.1.1
  * Author: VCAT Consulting GmbH - Team WordPress
  * Author URI: https://www.vcat.de
  * Text Domain: vtiger-webform-to-gravity-forms-converter
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'VWTGF_CONVERTER_VERSION', '1.1.0' );
+define( 'VWTGF_CONVERTER_VERSION', '1.1.1' );
 define( 'VWTGF_CONVERTER_FILE', __FILE__ );
 define( 'VWTGF_CONVERTER_PATH', plugin_dir_path( VWTGF_CONVERTER_FILE ) );
 define( 'VWTGF_CONVERTER_URL', plugin_dir_url( VWTGF_CONVERTER_FILE ) );
@@ -85,7 +85,7 @@ function vwtgf_converter_load_textdomain() {
  */
 function vwtgf_converter_min_php_version_error() {
 	echo '<div class="error"><p>';
-	esc_html_e( 'Euler WP requires PHP version 7.4 or higher to function properly. Please upgrade PHP or deactivate Euler WP.', 'vtiger-webform-to-gravity-forms-converter' );
+	esc_html_e( 'Vtiger Webform to Gravity Forms Converter requires PHP version 7.4 or higher to function properly. Please upgrade PHP or deactivate Vtiger Webform to Gravity Forms Converter.', 'vtiger-webform-to-gravity-forms-converter' );
 	echo '</p></div>';
 }
 
@@ -94,6 +94,6 @@ function vwtgf_converter_min_php_version_error() {
  */
 function vwtgf_converter_autoloader_missing() {
 	echo '<div class="error"><p>';
-	esc_html_e( 'Euler WP is missing the Composer autoloader file. Please run `composer install --no-dev -o` in the root folder of the plugin or use a release version including the `vendor` folder.', 'vtiger-webform-to-gravity-forms-converter' );
+	esc_html_e( 'Vtiger Webform to Gravity Forms Converter is missing the Composer autoloader file. Please run `composer install --no-dev -o` in the root folder of the plugin or use a release version including the `vendor` folder.', 'vtiger-webform-to-gravity-forms-converter' );
 	echo '</p></div>';
 }
