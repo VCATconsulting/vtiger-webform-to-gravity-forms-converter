@@ -24,9 +24,9 @@ This plugin support all default Vtiger Webform fields.
 
 == Installation ==
 
-1. Install and configure Gravity Forms plugin,
-2. Find this Vtiger Webform to Gravity Forms Converter plugin in the "Add Plugins" page within your WordPress installation or Upload the Vtiger Webform to Gravity Forms Converter plugin to your blog,
-3. Activate it,
+1. Install and configure Gravity Forms plugin
+2. Find this Vtiger Webform to Gravity Forms Converter plugin in the "Add Plugins" page within your WordPress installation or upload the Vtiger Webform to Gravity Forms Converter plugin to your blog
+3. Activate it
 4. Find the Vtiger Webform Converter in the admin menu under Forms!
 
 == Screenshots ==
