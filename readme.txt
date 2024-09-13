@@ -82,7 +82,7 @@ Or you can add the field manually in the Gravity Forms editor, but keep in mind 
 
 * Add own sanitization for the Vtiger Webform code with wp_kses
 * Add 2 new filters to change the allowed tags and attributes for the Vtiger Webform code
-* Make some code improvements
+* Made some code improvements
 
 = 1.0.1 =
 
