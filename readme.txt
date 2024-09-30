@@ -43,13 +43,13 @@ You can find an example usage of this filter in [a small plugin in a GIST](https
 
 = Can I change the field metadata before form creation?
 
-Yes, the plugin offers 2 filters called `vwtgf_converter_field_meta` and type specific 'vwtgf_converter_field_meta_{$input_type}' which you can use to change field meta like field length.
+Yes, the plugin offers 2 filters called `vwtgf_converter_field_meta` and type specific `vwtgf_converter_field_meta_{$input_type}` which you can use to change field meta like field length.
 
 You can find an example usage of this filter in [a small plugin in a GIST](https://gist.github.com/vcat-support/bdfacfb8377362901e985af1165d57a3).
 
 = Can I change the max upload file size and file extension for an upload field?
 
-Yes, the plugin offers 2 filters called `vwtgf_converter_upload_file_size` and 'vwtgf_converter_upload_file_extensions' to customize the upload field.
+Yes, the plugin offers 2 filters called `vwtgf_converter_upload_file_size` and `vwtgf_converter_upload_file_extensions` to customize the upload field.
 
 = Is it possible to update an existing form?
 
