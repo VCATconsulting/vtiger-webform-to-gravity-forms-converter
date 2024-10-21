@@ -43,7 +43,7 @@ class ConvertWebform {
 		 * Remove all script tags to prevent XSS.
 		 * HTML is not stored in the Database or outputted to the user.
 		 */
-		$raw_html   = ( isset( $_REQUEST['webform'] ) && ! empty( $_REQUEST['webform'] ) ) ? preg_replace( '@<(script)[^>]*?>.*?</\\1>@si', '', wp_unslash( $_REQUEST['webform'] ) ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		$raw_html = ( isset( $_REQUEST['webform'] ) && ! empty( $_REQUEST['webform'] ) ) ? preg_replace( '@<(script)[^>]*?>.*?</\\1>@si', '', wp_unslash( $_REQUEST['webform'] ) ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
 		/*
 		 * Clean and santize the HTML.
