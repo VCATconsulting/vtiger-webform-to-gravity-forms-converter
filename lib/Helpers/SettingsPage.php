@@ -71,7 +71,7 @@ class SettingsPage {
 		/*
 		 * Check if the current screen is the settings page.
 		 */
-		if ( 'forms_page_vwtgf-converter' !== $screen->id ) {
+		if ( 'gf_edit_forms' !== $screen->parent_base ) {
 			return;
 		}
 
@@ -92,11 +92,11 @@ class SettingsPage {
 				echo '</p></div>';
 			} else {
 				if ( 'success' === $status ) {
-					wp_admin_notice( 'Form successfully created!', [ 'type' => 'success', 'dismissible' => true ] );
+					wp_admin_notice( esc_html__( 'Form successfully created.', 'vtiger-webform-to-gravity-forms-converter' ), [ 'type' => 'success', 'dismissible' => true ] );
 				} elseif ( 'error' === $status ) {
-					wp_admin_notice( 'There was an error while creating the form!', [ 'type' => 'error', 'dismissible' => true ] );
+					wp_admin_notice( esc_html__( 'There was an error while creating the form!', 'vtiger-webform-to-gravity-forms-converter' ), [ 'type' => 'error', 'dismissible' => true ] );
 				} elseif ( 'updated' === $status ) {
-					wp_admin_notice( 'Form successfully updated!', [ 'type' => 'success', 'dismissible' => true ] );
+					wp_admin_notice( esc_html__( 'Form successfully updated!', 'vtiger-webform-to-gravity-forms-converter' ), [ 'type' => 'success', 'dismissible' => true ] );
 				}
 			}
 		}
