@@ -2,9 +2,9 @@
 
 Contributors: VCATconsulting, shogathu, nida78
 Requires at least: 5.0
-Tested up to: 6.9
+Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.1.2
+Stable tag: 1.2.0
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -72,7 +72,26 @@ IMPORTANT: After updating the form, the fields will be rearranged to the origina
 Yes, you can re-add the field by pasting the Vtiger webform code again and click the "Convert" button.
 Or you can add the field manually in the Gravity Forms editor, but keep in mind to set the admin label to the right value.
 
+= Can I enable multiple files for Vtiger upload fields?
+
+No. Vtiger webform upload fields support single file uploads only. Imported upload fields are created as single upload fields in Gravity Forms. If a field is manually changed to allow multiple files, the plugin will skip that field during submission
+and write a message to the PHP error log.
+
+= Why are default values from the Vtiger webform still submitted?
+
+Default values from the Vtiger webform are imported into Gravity Forms and are not overwritten by this plugin. If you do not want a default value to be submitted, remove the value from the Vtiger webform before importing or updating the Gravity Form.
+There is a known Vtiger issue where deleted default values may remain in the webform data. In that case the stale value has to be cleaned up in the Vtiger database.
+
 == Changelog ==
+
+= 1.2.0 =
+
+* Improve security checks for webform conversion requests.
+* Add stricter validation for Vtiger webform target URLs.
+* Improve handling of Vtiger upload fields, including local file forwarding and support for field names like `imagename[]`.
+* Prevent unsupported Gravity Forms multi-file uploads from being sent to Vtiger and log a warning instead.
+* Improve sanitization of imported Gravity Forms field metadata.
+* Improve compatibility with newer WordPress admin notices.
 
 = 1.1.2 =
 

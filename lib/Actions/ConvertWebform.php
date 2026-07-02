@@ -9,6 +9,7 @@ namespace VWTGF_CONVERTER\Actions;
 
 use DOMDocument;
 use GFAPI;
+use VWTGF_CONVERTER\Helpers\VtigerUrl;
 use WP_Error;
 
 /**
@@ -31,19 +32,27 @@ class ConvertWebform {
 	 */
 	public function vwtgf_converter_convert_web_form() {
 		/*
-		 * Check if the nonce is valid.
+		 * Check Permission
 		 */
-		if ( ! isset( $_REQUEST['vwtgf_converter_convert_webform'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_REQUEST['vwtgf_converter_convert_webform'] ) ), 'vwtgf_converter_convert_webform' ) ) {
-			wp_safe_redirect( admin_url( 'admin.php?page=vwtgf-converter&status=error' ) );
-			exit;
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You are not allowed to convert Vtiger webforms.', 'vtiger-webform-to-gravity-forms-converter' ), 403 );
 		}
+
+		/*
+		 * Check if addmin referer.
+		 */
+		check_admin_referer( 'vwtgf_converter_convert_webform', 'vwtgf_converter_convert_webform' );
 
 		/*
 		 * Get the raw HTML from the request and unslash it.
 		 * Remove all script tags to prevent XSS.
 		 * HTML is not stored in the Database or outputted to the user.
+		 * Own input santize later.
 		 */
-		$raw_html = ( isset( $_REQUEST['webform'] ) && ! empty( $_REQUEST['webform'] ) ) ? preg_replace( '@<(script)[^>]*?>.*?</\\1>@si', '', wp_unslash( $_REQUEST['webform'] ) ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		$raw_html = isset( $_POST['webform'] ) ? wp_unslash( $_POST['webform'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		$raw_html = is_string( $raw_html ) ? $raw_html : '';
+
+		$raw_html = preg_replace( '@<(script|style|noscript)\b[^>]*>.*?</\\1>@si', '', $raw_html );
 
 		/*
 		 * Clean and santize the HTML.
@@ -135,7 +144,7 @@ class ConvertWebform {
 				'name'           => [],
 				'action'         => [],
 				'method'         => [],
-				'accpet-charset' => [],
+				'accept-charset' => [],
 				'enctype'        => [],
 			],
 			'input'    => [
@@ -186,6 +195,7 @@ class ConvertWebform {
 		 *
 		 * @param array $allowed_tags The allowed tags.
 		 */
+		$allowed_tags = apply_filters( 'vwtgf_converter_allowed_tags', $allowed_tags );
 		$allowed_tags = apply_filters( 'vwtgf_converter_allowd_tags', $allowed_tags );
 
 		/**
@@ -271,16 +281,23 @@ class ConvertWebform {
 		/*
 		 * Load HTML string into the DOMDocument.
 		 */
-		$dom->loadHTML( $html_string );
+		$previous = libxml_use_internal_errors( true );
+		$loaded   = $dom->loadHTML( $html_string, LIBXML_NONET );
+		libxml_clear_errors();
+		libxml_use_internal_errors( $previous );
 
 		/*
 		 * Get the root element.
 		 */
 		$root_element = $dom->documentElement;
 
+		if ( ! $loaded || ! $root_element ) {
+			return [];
+		}
+
 		/*
-		 * Build array from root element.
-		 */
+		* Build array from root element.
+		*/
 
 		return $this->vwtgf_converter_build_array_from_element( $root_element );
 	}
@@ -299,7 +316,14 @@ class ConvertWebform {
 		 *  Switch for the different HTML Tags.
 		 */
 		foreach ( $html_array as $element ) {
-			$input_type = 'hidden';
+			$input_type  = 'hidden';
+			$attributes  = isset( $element['attributes'] ) && is_array( $element['attributes'] ) ? $element['attributes'] : [];
+			$attr_name   = isset( $attributes['name'] ) ? $attributes['name'] : '';
+			$attr_value  = isset( $attributes['value'] ) ? $attributes['value'] : '';
+			$attr_type   = isset( $attributes['type'] ) ? $attributes['type'] : '';
+			$attr_action = isset( $attributes['action'] ) ? $attributes['action'] : '';
+			$el_children = isset( $element['children'] ) && is_array( $element['children'] ) ? $element['children'] : [];
+
 			switch ( $element['tag'] ) {
 				case 'html':
 				case 'body':
@@ -308,35 +332,41 @@ class ConvertWebform {
 					/*
 					 * Just go deeper Into the Array.
 					 */
-					$this->vwtgf_converter_create_gf_form_object( $element['children'], $form_meta, $fieldid );
+					$this->vwtgf_converter_create_gf_form_object( $el_children, $form_meta, $fieldid );
 					break;
 				case 'form':
 					/*
 					 * Sets the GF title and adds the VTiger URL as a Hidden Field. Then go deeper into the Array.
 					 */
-					$form_meta['title'] = $element['attributes']['name'];
+					$action_url = esc_url_raw( $attr_action );
+
+					if ( empty( $action_url ) || ! VtigerUrl::is_allowed_vtiger_url( $action_url ) ) {
+						return;
+					}
+
+					$form_meta['title'] = ! empty( $attr_name ) ? sanitize_text_field( $attr_name ) : __( 'Imported Vtiger Form', 'vtiger-webform-to-gravity-forms-converter' );
 
 					$field = [
 						'type'         => $input_type,
-						'id'           => $fieldid ++,
+						'id'           => $fieldid++,
 						'label'        => 'vtiger_POST_url',
 						'adminLabel'   => 'vtiger_POST_url',
-						'defaultValue' => $element['attributes']['action'],
+						'defaultValue' => $action_url,
 						'size'         => 'large',
 					];
 
 					$form_meta['fields'][] = $field;
 
-					$this->vwtgf_converter_create_gf_form_object( $element['children'], $form_meta, $fieldid );
+					$this->vwtgf_converter_create_gf_form_object( $el_children, $form_meta, $fieldid );
 					break;
 				case 'input':
 					/*
 					 * If the Input is a Submit Button, add the Button to the Form Meta.
 					 */
-					if ( 'submit' === $element['attributes']['type'] ) {
+					if ( 'submit' === $attr_type ) {
 						$form_meta['button'] = [
 							'type' => 'text',
-							'text' => $element['attributes']['value'],
+							'text' => sanitize_text_field( $attr_value ),
 						];
 						break;
 					}
@@ -346,11 +376,11 @@ class ConvertWebform {
 					 */
 					$field = [
 						'type'         => $input_type,
-						'id'           => $fieldid ++,
-						'label'        => $element['attributes']['name'],
-						'adminLabel'   => $element['attributes']['name'],
-						'defaultValue' => ! empty( $element['attributes']['value'] ) ? $element['attributes']['value'] : '',
-						'isRequired'   => array_key_exists( 'required', $element['attributes'] ),
+						'id'           => $fieldid++,
+						'label'        => sanitize_text_field( $attr_name ),
+						'adminLabel'   => $this->sanitize_vtiger_field_name( $attr_name ),
+						'defaultValue' => ! empty( $attr_value ) ? sanitize_text_field( $attr_value ) : '',
+						'isRequired'   => array_key_exists( 'required', $attributes ),
 						'size'         => 'large',
 					];
 
@@ -365,19 +395,31 @@ class ConvertWebform {
 					 *
 					 * If the Input has a Label, set the Label.
 					 */
-					if ( count( $element['children'] ) === 2 ) {
-						$label = $element['children'][0]['children'][0]['text'];
+					if ( count( $el_children ) === 2 ) {
+						$label = isset( $el_children[0]['children'][0]['text'] ) ? $el_children[0]['children'][0]['text'] : '';
 						$index = 1;
 					}
 
 					/*
 					 * Sets the Array to the Element itself (not the Label Array).
 					 */
-					if ( count( $element['children'][ $index ]['children'] ) === 2 ) {
-						$element = $element['children'][ $index ]['children'][1];
-					} else {
-						$element = $element['children'][ $index ]['children'][0];
+					$cell_children = isset( $el_children[ $index ]['children'] ) && is_array( $el_children[ $index ]['children'] ) ? $el_children[ $index ]['children'] : [];
+
+					if ( empty( $cell_children ) ) {
+						break;
 					}
+
+					if ( count( $cell_children ) === 2 ) {
+						$element = $cell_children[1];
+					} else {
+						$element = $cell_children[0];
+					}
+
+					$attributes  = isset( $element['attributes'] ) && is_array( $element['attributes'] ) ? $element['attributes'] : [];
+					$attr_name   = isset( $attributes['name'] ) ? $attributes['name'] : '';
+					$attr_value  = isset( $attributes['value'] ) ? $attributes['value'] : '';
+					$attr_type   = isset( $attributes['type'] ) ? $attributes['type'] : '';
+					$el_children = isset( $element['children'] ) && is_array( $element['children'] ) ? $element['children'] : [];
 
 					/*
 					 *  Input field.
@@ -390,17 +432,17 @@ class ConvertWebform {
 						 */
 						if ( empty( $label ) ) {
 							$input_type = 'hidden';
-						} elseif ( 'email' === $element['attributes']['name'] ) {
+						} elseif ( 'email' === $attr_name ) {
 							$input_type = 'email';
-						} elseif ( 'mobile' === $element['attributes']['name'] || 'phone' === $element['attributes']['name'] || 'fax' === $element['attributes']['name'] ) {
+						} elseif ( 'mobile' === $attr_name || 'phone' === $attr_name || 'fax' === $attr_name ) {
 							$input_type = 'phone';
-						} elseif ( 'file' === $element['attributes']['type'] ) {
+						} elseif ( 'file' === $attr_type ) {
 							$input_type = 'fileupload';
-						} elseif ( 'checkbox' === $element['attributes']['type'] ) {
+						} elseif ( 'checkbox' === $attr_type ) {
 							$input_type = 'checkbox';
-						} elseif ( 'date' === $element['attributes']['type'] ) {
+						} elseif ( 'date' === $attr_type ) {
 							$input_type = 'date';
-						} elseif ( 'website' === $element['attributes']['name'] ) {
+						} elseif ( 'website' === $attr_name ) {
 							$input_type = 'website';
 						} else {
 							$input_type = 'text';
@@ -409,83 +451,83 @@ class ConvertWebform {
 						/*
 						 * Checks the field type with the label (label empty = hidden field).
 						 */
-						$field = [
-							'type'         => $input_type,
-							'id'           => $fieldid ++,
-							'label'        => $label ?? $element['attributes']['name'],
-							'adminLabel'   => $element['attributes']['name'],
-							'defaultValue' => ! empty( $element['attributes']['value'] ) ? $element['attributes']['value'] : '',
-							'isRequired'   => array_key_exists( 'required', $element['attributes'] ),
-							'size'         => 'large',
-						];
+							$field = [
+								'type'         => $input_type,
+								'id'           => $fieldid++,
+								'label'        => sanitize_text_field( ! empty( $label ) ? $label : $attr_name ),
+								'adminLabel'   => $this->sanitize_vtiger_field_name( $attr_name ),
+								'defaultValue' => ! empty( $attr_value ) ? sanitize_text_field( $attr_value ) : '',
+								'isRequired'   => array_key_exists( 'required', $attributes ),
+								'size'         => 'large',
+							];
 
-						/*
-						 * Checks if the field is an email field and add extra field attributes.
-						 */
-						if ( 'email' === $input_type ) {
-							$field['placeholder'] = 'name@example.com';
-						}
+							/*
+							* Checks if the field is an email field and add extra field attributes.
+							*/
+							if ( 'email' === $input_type ) {
+								$field['placeholder'] = 'name@example.ltd';
+							}
 
-						/*
-						 * Checks if the field is a phone field and add extra field attributes.
-						 */
-						if ( 'mobile' === $input_type || 'phone' === $input_type || 'fax' === $input_type ) {
-							$field['placeholder'] = '+49 (0) 123 / 456 789 0';
-						}
+							/*
+							* Checks if the field is a phone field and add extra field attributes.
+							*/
+							if ( 'mobile' === $input_type || 'phone' === $input_type || 'fax' === $input_type ) {
+								$field['placeholder'] = '+49 (0) 123 / 456 789 0';
+							}
 
-						/*
-						 * Checks if the field is a website field and add extra field attributes.
-						 */
-						if ( 'website' === $input_type ) {
-							$field['placeholder'] = 'https://example.com';
-						}
+							/*
+							* Checks if the field is a website field and add extra field attributes.
+							*/
+							if ( 'website' === $input_type ) {
+								$field['placeholder'] = 'https://example.ltd';
+							}
 
-						/*
-						 * Checks if the field is a file upload field and add extra field attributes and remove some.
-						 */
-						if ( 'fileupload' === $input_type ) {
-							$file_size = 5;
+							/*
+							* Checks if the field is a file upload field and add extra field attributes and remove some.
+							*/
+							if ( 'fileupload' === $input_type ) {
+								$file_size = 5;
 
-							/**
-							 * Filter for the file size (in MB) for the file upload field.
-							 *
-							 * @param string $file_size The file size.
-							 * @param array $field The field array.
-							 */
-							$file_size = apply_filters( 'vwtgf_converter_upload_file_size', $file_size, $field );
+								/**
+								 * Filter for the file size (in MB) for the file upload field.
+								 *
+								 * @param string $file_size The file size.
+								 * @param array $field The field array.
+								 */
+								$file_size = apply_filters( 'vwtgf_converter_upload_file_size', $file_size, $field );
 
-							$allowed_extensions = 'pdf,doc,docx,jpg,jpeg,png';
+								$allowed_extensions = 'pdf,doc,docx,jpg,jpeg,png';
 
-							/**
-							 * Filter for the allowed file extensions for the file upload field.
-							 *
-							 * @param string $allowed_extensions The allowed file extensions.
-							 * @param array $field The field array.
-							 */
-							$allowed_extensions = apply_filters( 'vwtgf_converter_upload_file_extensions', $allowed_extensions, $field );
+								/**
+								 * Filter for the allowed file extensions for the file upload field.
+								 *
+								 * @param string $allowed_extensions The allowed file extensions.
+								 * @param array $field The field array.
+								 */
+								$allowed_extensions = apply_filters( 'vwtgf_converter_upload_file_extensions', $allowed_extensions, $field );
 
-							$field['multipleFiles']     = false;
-							$field['maxFileSize']       = $file_size;
-							$field['allowedExtensions'] = $allowed_extensions;
-							unset( $field['size'] );
-							unset( $field['defaultValue'] );
-						}
+								$field['multipleFiles']     = false;
+								$field['maxFileSize']       = $file_size;
+								$field['allowedExtensions'] = $allowed_extensions;
+								unset( $field['size'] );
+								unset( $field['defaultValue'] );
+							}
 
-						if ( 'date' === $input_type ) {
-							$field['dateType']   = 'datedropdown';
-							$field['dateFormat'] = 'ymd_dash';
-						}
+							if ( 'date' === $input_type ) {
+								$field['dateType']   = 'datedropdown';
+								$field['dateFormat'] = 'ymd_dash';
+							}
 
-						if ( 'checkbox' === $input_type ) {
-							$choices['text']     = $label;
-							$choices['value']    = $label;
-							$field['choices'][0] = $choices;
-							unset( $field['label'] );
-						}
+							if ( 'checkbox' === $input_type ) {
+								$choices['text']     = sanitize_text_field( $label );
+								$choices['value']    = sanitize_text_field( $label );
+								$field['choices'][0] = $choices;
+								unset( $field['label'] );
+							}
 
-						/*
-						 * Select Field.
-						 */
+							/*
+							* Select Field.
+							*/
 					} elseif ( 'textarea' === $element['tag'] ) {
 							/*
 							 * Check for special fields.
@@ -501,15 +543,15 @@ class ConvertWebform {
 							 */
 							$field = [
 								'type'         => $input_type,
-								'id'           => $fieldid ++,
-								'label'        => $label ?? $element['attributes']['name'],
-								'adminLabel'   => $element['attributes']['name'],
-								'defaultValue' => ! empty( $element['attributes']['text'] ) ? $element['attributes']['text'] : '',
-								'isRequired'   => array_key_exists( 'required', $element['attributes'] ),
+								'id'           => $fieldid++,
+								'label'        => sanitize_text_field( ! empty( $label ) ? $label : $attr_name ),
+								'adminLabel'   => $this->sanitize_vtiger_field_name( $attr_name ),
+								'defaultValue' => ! empty( $attributes['text'] ) ? sanitize_text_field( $attributes['text'] ) : '',
+								'isRequired'   => array_key_exists( 'required', $attributes ),
 								'size'         => 'large',
 							];
 					} elseif ( 'select' === $element['tag'] ) {
-						$is_multiple = array_key_exists( 'multiple', $element['attributes'] );
+						$is_multiple = array_key_exists( 'multiple', $attributes );
 
 						/*
 						 * Checks if the Select Field is Hidden.
@@ -522,12 +564,14 @@ class ConvertWebform {
 
 							/*
 							 *Iterates through all options and add them to the option Array.
-							 */
-							foreach ( $element['children'] as $option ) {
+							*/
+							foreach ( $el_children as $option ) {
+								$option_attributes = isset( $option['attributes'] ) && is_array( $option['attributes'] ) ? $option['attributes'] : [];
+
 								$choices[] = [
-									'text'       => $option['text'],
-									'value'      => $option['attributes']['value'],
-									'isSelected' => array_key_exists( 'selected', $option['attributes'] ),
+									'text'       => isset( $option['text'] ) ? sanitize_text_field( $option['text'] ) : '',
+									'value'      => isset( $option_attributes['value'] ) ? sanitize_text_field( $option_attributes['value'] ) : '',
+									'isSelected' => array_key_exists( 'selected', $option_attributes ),
 								];
 							}
 
@@ -535,21 +579,21 @@ class ConvertWebform {
 							$placeholder = '';
 
 							if ( ! $is_multiple ) {
-								$placeholder = $choices[0]['text'];
+								$placeholder = isset( $choices[0]['text'] ) ? $choices[0]['text'] : '';
 								array_shift( $choices );
 								$input_type = 'select';
 							}
 
-							$field = [
-								'type'        => $input_type,
-								'id'          => $fieldid ++,
-								'label'       => $label,
-								'adminLabel'  => $element['attributes']['name'],
-								'placeholder' => $placeholder,
-								'choices'     => $choices,
-								'isRequired'  => array_key_exists( 'required', $element['attributes'] ),
-								'size'        => 'large',
-							];
+									$field = [
+										'type'        => $input_type,
+										'id'          => $fieldid++,
+										'label'       => sanitize_text_field( $label ),
+										'adminLabel'  => $this->sanitize_vtiger_field_name( $attr_name ),
+										'placeholder' => sanitize_text_field( $placeholder ),
+										'choices'     => $choices,
+										'isRequired'  => array_key_exists( 'required', $attributes ),
+										'size'        => 'large',
+									];
 						} else {
 							/*
 							 * Hidden Select Field: Gets Converted to a Hidden Input Field.
@@ -557,21 +601,23 @@ class ConvertWebform {
 							$select_value = '';
 
 							/*
-							 * Gets the Selected option.
-							 */
-							foreach ( $element['children'] as $option ) {
-								if ( array_key_exists( 'selected', $option['attributes'] ) ) {
-									$select_value = $option['attributes']['value'];
+							* Gets the Selected option.
+							*/
+							foreach ( $el_children as $option ) {
+								$option_attributes = isset( $option['attributes'] ) && is_array( $option['attributes'] ) ? $option['attributes'] : [];
+
+								if ( array_key_exists( 'selected', $option_attributes ) ) {
+									$select_value = isset( $option_attributes['value'] ) ? $option_attributes['value'] : '';
 								}
 							}
-							$field = [
-								'type'         => $input_type,
-								'id'           => $fieldid ++,
-								'label'        => $element['attributes']['name'],
-								'adminLabel'   => $element['attributes']['name'],
-								'defaultValue' => $select_value,
-								'size'         => 'large',
-							];
+									$field = [
+										'type'         => $input_type,
+										'id'           => $fieldid++,
+										'label'        => sanitize_text_field( $attr_name ),
+										'adminLabel'   => $this->sanitize_vtiger_field_name( $attr_name ),
+										'defaultValue' => sanitize_text_field( $select_value ),
+										'size'         => 'large',
+									];
 						}
 					}
 
@@ -647,5 +693,16 @@ class ConvertWebform {
 		$form           = GFAPI::get_form( $form_id );
 		$form['fields'] = $form_meta['fields'];
 		GFAPI::update_form( $form );
+	}
+
+	/**
+	 * Sanitize a Vtiger field name while preserving the expected field identifier.
+	 *
+	 * @param string $name Field name.
+	 *
+	 * @return string
+	 */
+	private function sanitize_vtiger_field_name( $name ) {
+		return preg_replace( '/[\r\n"\']/', '', sanitize_text_field( (string) $name ) );
 	}
 }

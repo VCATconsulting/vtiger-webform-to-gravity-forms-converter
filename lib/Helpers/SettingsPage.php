@@ -45,6 +45,10 @@ class SettingsPage {
 	 * Add settings page.
 	 */
 	public function vwtgf_converter_admin_page_html() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You are not allowed to access this page.', 'vtiger-webform-to-gravity-forms-converter' ), 403 );
+		}
+
 		echo '<div class="wrap vwtgf_converter_converter">';
 		echo '<h1>' . esc_html( get_admin_page_title() ) . '</h1>';
 		echo '<div class="tab-content">';
@@ -52,7 +56,7 @@ class SettingsPage {
 		echo '<input type="hidden" name="action" value="vwtgf_converter_convert_form">';
 		echo '<label for="webform">Vtiger Webform</label><br>';
 		echo '<textarea id="webform" name="webform" rows="30" cols="100"></textarea><br>';
-		echo sprintf( '<input type="submit" value="%1$s" name="webform-button" class="button button-primary">', esc_html__( 'Convert', 'vtiger-webform-to-gravity-forms-converter' ) );
+		printf( '<input type="submit" value="%1$s" name="webform-button" class="button button-primary">', esc_html__( 'Convert', 'vtiger-webform-to-gravity-forms-converter' ) );
 		wp_nonce_field( 'vwtgf_converter_convert_webform', 'vwtgf_converter_convert_webform' );
 		echo '</form></div></div>';
 	}
@@ -77,26 +81,36 @@ class SettingsPage {
 
 		// phpcs:disable
 		if ( isset( $_GET['status'] ) ) {
-			$status = sanitize_text_field( wp_unslash( $_GET['status'] ) );
-			if ( '6.4.0' > $wp_version) {
-				echo '<div class="notice notice-' . esc_attr( $status ) . ' is-dismissible">';
+			$status          = sanitize_key( wp_unslash( $_GET['status'] ) );
+			$allowed_status  = [ 'success', 'error', 'updated' ];
+			$notice_type_map = [
+				'success' => 'success',
+				'error'   => 'error',
+				'updated' => 'success',
+			];
+
+			if ( ! in_array( $status, $allowed_status, true ) ) {
+				return;
+			}
+
+			if ( version_compare( $wp_version, '6.4.0', '<' ) ) {
+				echo '<div class="notice notice-' . esc_attr( $notice_type_map[ $status ] ) . ' is-dismissible">';
 				echo '<p>';
 				if ( 'success' === $status ) {
 					echo esc_html__( 'Form successfully created.', 'vtiger-webform-to-gravity-forms-converter' );
 				} elseif ( 'error' === $status ) {
 					echo esc_html__( 'There was an error while creating the form!', 'vtiger-webform-to-gravity-forms-converter' );
-				}
-				elseif ( 'updated' === $status ) {
+				} elseif ( 'updated' === $status ) {
 					echo esc_html__( 'Form successfully updated!', 'vtiger-webform-to-gravity-forms-converter' );
 				}
 				echo '</p></div>';
 			} else {
 				if ( 'success' === $status ) {
-					wp_admin_notice( esc_html__( 'Form successfully created.', 'vtiger-webform-to-gravity-forms-converter' ), [ 'type' => 'success', 'dismissible' => true ] );
+					wp_admin_notice( esc_html__( 'Form successfully created.', 'vtiger-webform-to-gravity-forms-converter' ), [ 'type' => $notice_type_map[ $status ], 'dismissible' => true ] );
 				} elseif ( 'error' === $status ) {
-					wp_admin_notice( esc_html__( 'There was an error while creating the form!', 'vtiger-webform-to-gravity-forms-converter' ), [ 'type' => 'error', 'dismissible' => true ] );
+					wp_admin_notice( esc_html__( 'There was an error while creating the form!', 'vtiger-webform-to-gravity-forms-converter' ), [ 'type' => $notice_type_map[ $status ], 'dismissible' => true ] );
 				} elseif ( 'updated' === $status ) {
-					wp_admin_notice( esc_html__( 'Form successfully updated!', 'vtiger-webform-to-gravity-forms-converter' ), [ 'type' => 'success', 'dismissible' => true ] );
+					wp_admin_notice( esc_html__( 'Form successfully updated!', 'vtiger-webform-to-gravity-forms-converter' ), [ 'type' => $notice_type_map[ $status ], 'dismissible' => true ] );
 				}
 			}
 		}
