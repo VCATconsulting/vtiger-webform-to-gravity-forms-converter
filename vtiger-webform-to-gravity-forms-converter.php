@@ -10,7 +10,9 @@
  * Plugin Name: Vtiger Webform to Gravity Forms Converter
  * Plugin URI: https://github.com/VCATconsulting/vtiger-webform-to-gravity-forms-converter
  * Description: Converts Vtiger Webforms to Gravity Forms
- * Version: 1.2.0
+ * Version: 1.3.0
+ * Requires at least: 5.0
+ * Requires PHP: 7.4
  * Author: VCAT Consulting GmbH - Team WordPress
  * Author URI: https://www.vcat.de
  * Text Domain: vtiger-webform-to-gravity-forms-converter
@@ -24,7 +26,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'VWTGF_CONVERTER_VERSION' ) ) {
-	define( 'VWTGF_CONVERTER_VERSION', '1.2.0' );
+	define( 'VWTGF_CONVERTER_VERSION', '1.3.0' );
 }
 if ( ! defined( 'VWTGF_CONVERTER_FILE' ) ) {
 	define( 'VWTGF_CONVERTER_FILE', __FILE__ );
@@ -77,10 +79,9 @@ function vwtgf_converter_ensure_ready( $load = true ) {
 		return 'php_too_old';
 	}
 
-	$composer_file = VWTGF_CONVERTER_PATH . 'composer.json';
-	$autoloader    = VWTGF_CONVERTER_PATH . 'vendor/autoload.php';
+	$autoloader = VWTGF_CONVERTER_PATH . 'vendor/autoload.php';
 
-	if ( file_exists( $composer_file ) && ! is_readable( $autoloader ) ) {
+	if ( ! is_readable( $autoloader ) ) {
 		return 'autoloader_missing';
 	}
 
@@ -88,9 +89,7 @@ function vwtgf_converter_ensure_ready( $load = true ) {
 		return 'ok';
 	}
 
-	if ( is_readable( $autoloader ) ) {
-		require_once $autoloader;
-	}
+	require_once $autoloader;
 
 	require_once VWTGF_CONVERTER_PATH . 'lib/load.php';
 

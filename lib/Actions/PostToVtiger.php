@@ -73,7 +73,7 @@ class PostToVtiger {
 		/*
 		 *  Boundary-Token für multipart/form-data.
 		 */
-		$boundary = uniqid();
+		$boundary = wp_generate_password( 48, false, false );
 
 		/**
 		 * Allow to modify the boundry.
@@ -113,18 +113,58 @@ class PostToVtiger {
 				continue;
 			}
 
-			if ( 'date' === $field['type'] && ( ! empty( rgpost( 'input_' . $field['id'] )[0] ) ) ) {
-				$date_array = wp_unslash( rgpost( 'input_' . $field['id'] ) );
-				$date       = implode( '-', $date_array );
+			if ( 'date' === $field['type'] ) {
+				$value = wp_unslash( rgpost( 'input_' . $field['id'] ) );
+				// Gravity Forms submits three components for date fields and dropdowns, but one string for a datepicker.
+				if ( is_array( $value ) ) {
+					if ( 3 !== count( $value ) || ! isset( $value[0], $value[1], $value[2] )
+						|| 3 !== count( array_filter( $value, 'is_string' ) )
+						|| 3 !== count( array_filter( $value, 'ctype_digit' ) ) ) {
+						continue;
+					}
+				} elseif ( ! is_string( $value ) || 'datepicker' !== ( $field['dateType'] ?? '' ) ) {
+					continue;
+				}
+
+				// Interpret day and month in the field's display order before sending Vtiger a YYYY-MM-DD value.
+				$format = ! empty( $field['dateFormat'] ) ? $field['dateFormat'] : 'mdy';
+				$parts  = \GFCommon::parse_date( $value, $format );
+				$year   = $parts['year'] ?? '';
+				$month  = (int) ( $parts['month'] ?? 0 );
+				$day    = (int) ( $parts['day'] ?? 0 );
+				if ( 4 !== strlen( $year ) || ! checkdate( $month, $day, (int) $year ) ) {
+					continue;
+				}
+
+				$date = sprintf( '%04d-%02d-%02d', $year, $month, $day );
 				$payload   .= '--' . $boundary . "\r\n";
 				$payload   .= 'Content-Disposition: form-data; name="' . $field_name . '"' . "\r\n\r\n";
 				$payload   .= $date . "\r\n";
 			} elseif ( 'time' === $field['type'] ) {
-				$time_array = wp_unslash( rgpost( 'input_' . $field['id'] ) );
-				if ( isset( $time_array[2] ) && 'pm' === $time_array[2] ) {
-					$time_array[0] += 12;
+				$parts = wp_unslash( rgpost( 'input_' . $field['id'] ) );
+				if ( ! is_array( $parts ) || ! is_string( $parts[0] ?? null ) || ! is_string( $parts[1] ?? null )
+					|| 1 !== preg_match( '/^[0-9]{1,2}$/D', $parts[0] ) || 1 !== preg_match( '/^[0-9]{1,2}$/D', $parts[1] ) ) {
+					continue;
 				}
-				$time = sprintf( '%02d', $time_array[0] ) . ':' . sprintf( '%02d', $time_array[1] );
+				$hour   = (int) $parts[0];
+				$minute = (int) $parts[1];
+				if ( 59 < $minute ) {
+					continue;
+				}
+				if ( '24' === (string) ( $field['timeFormat'] ?? '' ) ) {
+					// Gravity Forms accepts 24:00 as the end of the day, but not later minutes in hour 24.
+					if ( 24 < $hour || ( 24 === $hour && 0 !== $minute ) ) {
+						continue;
+					}
+				} else {
+					$period = is_string( $parts[2] ?? null ) ? strtolower( $parts[2] ) : '';
+					if ( 1 > $hour || 12 < $hour || ! in_array( $period, [ 'am', 'pm' ], true ) ) {
+						continue;
+					}
+					// Map 12 AM to midnight and 12 PM to noon.
+					$hour = ( $hour % 12 ) + ( 'pm' === $period ? 12 : 0 );
+				}
+				$time = sprintf( '%02d:%02d', $hour, $minute );
 
 				$payload .= '--' . $boundary . "\r\n";
 				$payload .= 'Content-Disposition: form-data; name="' . $field_name . '"' . "\r\n\r\n";
@@ -140,22 +180,20 @@ class PostToVtiger {
 					continue;
 				}
 
-				$upload_path = GFFormsModel::get_upload_path( $entry['form_id'] );
-				$upload_url  = GFFormsModel::get_upload_url( $entry['form_id'] );
-				$filelink    = str_replace( $upload_path, $upload_url, $entry[ $field['id'] ] );
+				$file_path = $this->resolve_local_upload(
+					$entry[ $field['id'] ] ?? null,
+					absint( $entry['id'] ?? 0 ),
+					absint( $entry['form_id'] ?? 0 )
+				);
 
-				if ( '' === $filelink ) {
+				if ( null === $file_path ) {
 					continue;
 				}
-
-				$file_path = str_replace( $upload_url, $upload_path, $filelink );
-
-				if ( ! is_readable( $file_path ) ) {
-					continue;
-				}
-
 				$file_content = file_get_contents( $file_path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
-				$file_name    = sanitize_file_name( basename( $file_path ) );
+				if ( false === $file_content ) {
+					continue;
+				}
+				$file_name = sanitize_file_name( basename( $file_path ) );
 
 				if ( empty( $file_name ) ) {
 					$file_name = 'upload';
@@ -166,18 +204,24 @@ class PostToVtiger {
 				$payload .= 'Content-Type: ' . $this->get_url_mimetype( $file_content ) . "\r\n\r\n";
 				$payload .= $file_content . "\r\n";
 			} else {
+				$default = (string) ( $field['defaultValue'] ?? '' );
+				// Use the configured value for fixed fields, but keep submitted values for dynamic defaults.
+				$fixed   = 'hidden' === $field['type'] && ! empty( $field['vwtgfFixedDefault'] )
+				           && empty( $field['allowsPrepopulate'] ) && false === strpos( $default, '{' );
+				$value   = $fixed ? $default : wp_unslash( rgpost( 'input_' . $field['id'] ) );
 				$payload .= '--' . $boundary . "\r\n";
 				$payload .= 'Content-Disposition: form-data; name="' . $field_name . '"' . "\r\n\r\n";
-				$payload .= sanitize_text_field( wp_unslash( rgpost( 'input_' . $field['id'] ) ) ) . "\r\n";
+				$payload .= ( 'textarea' === $field['type'] ? sanitize_textarea_field( $value ) : sanitize_text_field( $value ) ) . "\r\n";
 			}
 		}
 
 		$payload .= '--' . $boundary . '--';
 
 		$args = [
-			'headers' => $headers,
-			'method'  => 'POST',
-			'body'    => $payload,
+			'headers'     => $headers,
+			'method'      => 'POST',
+			'body'        => $payload,
+			'redirection' => 0,
 		];
 
 		/**
@@ -204,6 +248,79 @@ class PostToVtiger {
 		if ( 200 > $status_code || 299 < $status_code ) {
 			error_log( 'VWTGF Converter: Vtiger request returned HTTP ' . (int) $status_code ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
 		}
+	}
+
+	/**
+	 * Resolve a local single upload using the location saved with the entry.
+	 *
+	 * @param string $file_url File URL from the upload field.
+	 * @param int    $entry_id Gravity Forms entry ID.
+	 * @param int    $form_id  Gravity Forms form ID.
+	 * @return string|null Canonical path, or null for an unsupported reference.
+	 */
+	private function resolve_local_upload( $file_url, $entry_id, $form_id ) {
+		if ( ! is_string( $file_url ) || '' === $file_url || false !== strpos( $file_url, "\0" )
+			|| ! $entry_id || ! $form_id || ! in_array( wp_parse_url( $file_url, PHP_URL_SCHEME ), [ 'http', 'https' ], true )
+			|| ! wp_parse_url( $file_url, PHP_URL_HOST ) || false !== strpbrk( $file_url, '?#' ) ) {
+			return null;
+		}
+
+		$meta = false;
+		if ( is_callable( [ \GF_Field_FileUpload::class, 'get_file_upload_path_meta_key_hash' ] ) ) {
+			$key  = \GF_Field_FileUpload::get_file_upload_path_meta_key_hash( $file_url );
+			$meta = gform_get_meta( $entry_id, $key );
+		}
+
+		// Only missing metadata permits a fallback to this form's upload directory; reject inconsistent mappings.
+		if ( false === $meta ) {
+			$base_url = GFFormsModel::get_upload_url( $form_id );
+			$base_dir = GFFormsModel::get_upload_path( $form_id );
+		} elseif ( is_array( $meta ) && is_string( $meta['file_name'] ?? null )
+			&& '' !== $meta['file_name'] && wp_basename( $file_url ) === $meta['file_name'] ) {
+			$base_url = $meta['url'] ?? null;
+			$base_dir = $meta['path'] ?? null;
+		} else {
+			return null;
+		}
+
+		if ( ! is_string( $base_url ) || '' === $base_url || ! is_string( $base_dir ) || '' === $base_dir
+			|| false !== strpos( $base_dir, "\0" ) || wp_is_stream( $base_dir ) || ! path_is_absolute( $base_dir ) ) {
+			return null;
+		}
+
+		$prefix = trailingslashit( $base_url );
+		if ( 0 !== strpos( $file_url, $prefix ) ) {
+			return null;
+		}
+
+		$relative = substr( $file_url, strlen( $prefix ) );
+		if ( '' === $relative || false !== strpos( $relative, '\\' )
+			|| array_intersect( [ '', '.', '..' ], explode( '/', $relative ) ) ) {
+			return null;
+		}
+
+		if ( false === $meta ) {
+			$candidate = trailingslashit( $base_dir ) . $relative;
+		} else {
+			// GF stores the parent directory and basename of this specific file.
+			if ( $meta['file_name'] !== $relative ) {
+				return null;
+			}
+			$candidate = GFFormsModel::get_physical_file_path( $file_url, $entry_id );
+		}
+
+		if ( ! is_string( $candidate ) || '' === $candidate || wp_is_stream( $candidate ) || ! path_is_absolute( $candidate ) ) {
+			return null;
+		}
+		// Resolve symlinks before checking that the file is still inside the allowed directory.
+		$root = realpath( $base_dir );
+		$file = realpath( $candidate );
+		if ( false === $root || false === $file || ! is_dir( $root ) || ! is_file( $file ) || ! is_readable( $file ) ) {
+			return null;
+		}
+
+		$root_prefix = rtrim( $root, DIRECTORY_SEPARATOR ) . DIRECTORY_SEPARATOR;
+		return 0 === strpos( $file, $root_prefix ) ? $file : null;
 	}
 
 	/**

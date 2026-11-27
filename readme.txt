@@ -1,10 +1,10 @@
-=== Vtiger Webform to Gravity Forms Converter===
+=== Vtiger Webform to Gravity Forms Converter ===
 
 Contributors: VCATconsulting, shogathu, nida78
 Requires at least: 5.0
-Tested up to: 7.0
+Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.2.0
+Stable tag: 1.3.0
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.txt
 
@@ -17,10 +17,7 @@ It offers the opportunity to convert Vtiger Webforms to Gravity Forms and post t
 
 It requires a Vtiger CRM Open Source installation and the [Gravity Forms](https://www.gravityforms.com/ "visit Gravity Forms website") plugin.
 
-To use it, just paste the Vtiger Webform code into the input field and click the "Convert" button.
-The plugin will then create a new Gravity Form with the fields from the Vtiger Webform.
-
-This plugin support all default Vtiger Webform fields.
+Paste the HTML code from your Vtiger webform into the converter and click "Convert". The plugin creates a Gravity Forms form or updates an existing form that matches the Vtiger public ID and capture URL.
 
 == Installation ==
 
@@ -35,54 +32,70 @@ This plugin support all default Vtiger Webform fields.
 
 == Frequently Asked Questions ==
 
-= Can I change the form metadata before form creation?
+= Can I change the form metadata before form creation? =
 
-Yes, the plugin offers a filter called `vwtgf_converter_form_meta` which you can use to edit form meta like disable honeypot.
+Yes. Use the `vwtgf_converter_form_meta` filter to change form settings before creation, such as disabling the honeypot.
 
 You can find an example usage of this filter in [a small plugin in a GIST](https://gist.github.com/vcat-support/487c3fe6e711a6336a0927f83aaf2db5).
 
-= Can I change the field metadata before form creation?
+= Can I change the field metadata before form creation? =
 
 Yes, the plugin offers 2 filters called `vwtgf_converter_field_meta` and type specific `vwtgf_converter_field_meta_{$input_type}` which you can use to change field meta like field length.
 
 You can find an example usage of this filter in [a small plugin in a GIST](https://gist.github.com/vcat-support/bdfacfb8377362901e985af1165d57a3).
 
-= Can I change the max upload file size and file extension for an upload field?
+= Can I change the max upload file size and file extension for an upload field? =
 
 Yes, the plugin offers 2 filters called `vwtgf_converter_upload_file_size` and `vwtgf_converter_upload_file_extensions` to customize the upload field.
 
-= Is it possible to update an existing form?
+= Is it possible to update an existing form? =
 
-Yes, just paste the code of the webform into the input field and click the "Convert", if the form already exists, the plugin will update the form.
-The identifier for the form is the form publicid from vtiger webform which does not change after updating the webform in Vtiger.
-Keep in mind, that the plugin overwrites the form fields and settings, so if you have made changes in the Gravity Forms editor, you will lose them.
+Yes. Paste the Vtiger webform code into the converter and click "Convert". The plugin checks both active and inactive Gravity Forms for a match; forms in the trash are excluded.
+A form matches only if both the Vtiger public ID and the capture URL match. If no form matches, the plugin creates a new one. If more than one form matches, the import stops without overwriting any form.
+Updating a form replaces its field list. Fields added manually and changes made to field settings in the Gravity Forms editor will be lost.
 
-= Can I use the default Gravity Forms time field?
+= Can I use the default Gravity Forms time field? =
 
-Vtiger create the time field as a normal input field. If you want to use the time field from Gravity Forms, you add the field manually after the conversion and change the admin label to the same as the Vtiger field.
-Then you can  delete the Vtiger time field in Gravity Forms.
+Yes. The converter imports the Vtiger time input as a text field. To use a Gravity Forms Time field instead, add one after conversion, copy the imported field's Admin Field Label to it, and remove the imported text field.
+You can use either the 12-hour or 24-hour format. The converter sends the time to Vtiger as HH:MM in 24-hour format.
 
-= Can I rearrange the fields?
+= Can I rearrange the fields? =
 
-Yes, you can drag and drop the fields in the gravity form editor.
-IMPORTANT: After updating the form, the fields will be rearranged to the original order of the Vtiger webform.
+Yes, you can drag and drop the fields in the Gravity Forms editor.
+IMPORTANT: When you re-import the Vtiger webform, the fields will be rearranged to the original order of the Vtiger webform.
 
-= I accidentally deleted an important field, can I re-add it?
+= I accidentally deleted an important field, can I re-add it? =
 
 Yes, you can re-add the field by pasting the Vtiger webform code again and click the "Convert" button.
 Or you can add the field manually in the Gravity Forms editor, but keep in mind to set the admin label to the right value.
 
-= Can I enable multiple files for Vtiger upload fields?
+= Can I enable multiple files for Vtiger upload fields? =
 
-No. Vtiger webform upload fields support single file uploads only. Imported upload fields are created as single upload fields in Gravity Forms. If a field is manually changed to allow multiple files, the plugin will skip that field during submission
-and write a message to the PHP error log.
+No. Vtiger accepts one file per upload field. For upload fields imported with version 1.3.0 or later, the Gravity Forms editor hides the multi-file option and the converter enforces single-file mode when the form is saved.
+If an existing Vtiger upload field is already configured for multiple files, the converter skips that field during submission and writes a warning to the PHP error log.
 
-= Why are default values from the Vtiger webform still submitted?
+= Why are default values from the Vtiger webform still submitted? =
 
-Default values from the Vtiger webform are imported into Gravity Forms and are not overwritten by this plugin. If you do not want a default value to be submitted, remove the value from the Vtiger webform before importing or updating the Gravity Form.
-There is a known Vtiger issue where deleted default values may remain in the webform data. In that case the stale value has to be cleaned up in the Vtiger database.
+A preselected option in Gravity Forms and a default configured in Vtiger are not the same. For a visible dropdown, the converter sends the visitor's selection, but Vtiger may still apply its own webform default. For an imported hidden field with a fixed value, the converter sends the configured value.
+If Vtiger should use the visitor's selection, remove the default from the Vtiger webform. If a deleted default still takes effect, ask your Vtiger administrator to check for a stale value in the database.
 
 == Changelog ==
+
+= 1.3.0 =
+
+* Show which forms and fields were imported from Vtiger in the Gravity Forms editor. Use the `vwtgf_converter_source_info_color` filter to customize the field notice color.
+* Keep imported Vtiger upload fields in single-file mode when editing and saving a form.
+* Match forms on re-import by both the Vtiger public ID and the capture URL, including inactive forms. Stop if multiple forms match and report failed updates.
+* Send Gravity Forms Date field values to Vtiger as YYYY-MM-DD using the field's configured date format.
+* Send Gravity Forms Time field values to Vtiger as HH:MM in 24-hour format, correctly handling noon and midnight for 12-hour fields.
+* Preserve required dropdowns, preselected options, and checked checkboxes. Keep the first real dropdown option instead of treating it as a placeholder.
+* Translate standard Vtiger dropdown placeholders at import time and preserve custom placeholder text.
+* Preserve line breaks in textarea defaults and submissions, and retain explicit zero values when importing field defaults.
+* Use configured defaults for fixed hidden fields when forwarding submissions, while respecting dynamically populated fields.
+* Resolve local uploads using the file location saved with the entry, including custom upload directories. Verify that each file is inside the expected directory before forwarding it.
+* Disable automatic redirects when forwarding submissions to Vtiger.
+* Show an admin notice if the Composer autoloader is missing, even when composer.json is not included in the release package.
+
 
 = 1.2.0 =
 

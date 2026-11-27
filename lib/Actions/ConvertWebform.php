@@ -23,6 +23,96 @@ class ConvertWebform {
 	 */
 	public function init() {
 		add_action( 'admin_post_vwtgf_converter_convert_form', [ $this, 'vwtgf_converter_convert_web_form' ] );
+		add_action( 'gform_field_standard_settings', [ $this, 'render_source_setting' ] );
+		add_action( 'gform_editor_js', [ $this, 'load_source_editor_assets' ] );
+		add_filter( 'gform_form_update_meta', [ $this, 'enforce_single_upload' ], 10, 3 );
+	}
+
+	/**
+	 * Display read-only source information in the field editor.
+	 *
+	 * @param int $position Field settings position.
+	 */
+	public function render_source_setting( $position ) {
+		if ( 0 !== (int) $position ) {
+			return;
+		}
+
+		$source_color = '#B30000';
+
+		/**
+		 * Filter the color of the source information text in the field editor.
+		 *
+		 * @param string $source_color The color of the source information text.
+		 *
+		 * @return string The filtered color of the source information text.
+		 */
+		$source_color = apply_filters( 'vwtgf_converter_source_info_color', $source_color );
+
+		?>
+		<li class="vwtgf_source_setting field_setting">
+			<?php
+			printf(
+				'<span style="font-weight: bold; color: %s;">%s</span>',
+				esc_attr( $source_color ),
+				esc_html__( 'This field was imported from a Vtiger webform.', 'vtiger-webform-to-gravity-forms-converter' )
+			);
+			?>
+
+		</li>
+		<li class="vwtgf_single_upload_setting field_setting">
+			<?php
+			printf(
+				'<span style="font-weight: bold; color: %s;">%s</span>',
+				esc_attr( $source_color ),
+				esc_html__( 'Vtiger accepts only one file per upload field. Multi-file uploads are disabled for this field.', 'vtiger-webform-to-gravity-forms-converter' )
+			);
+			?>
+
+		</li>
+		<?php
+	}
+
+	/**
+	 * Load the editor script and its translated form notice.
+	 */
+	public function load_source_editor_assets() {
+		wp_enqueue_script(
+			'vwtgf-converter-form-editor',
+			VWTGF_CONVERTER_URL . 'assets/js/form-editor.js',
+			[ 'gform_form_editor' ],
+			VWTGF_CONVERTER_VERSION,
+			true
+		);
+		?>
+		<template id="vwtgf-form-source-template">
+			<div id="vwtgf-form-source" class="notice notice-info inline">
+				<p><?php esc_html_e( 'This form was imported from a Vtiger webform.', 'vtiger-webform-to-gravity-forms-converter' ); ?></p>
+			</div>
+		</template>
+		<?php
+	}
+
+	/**
+	 * Keep imported upload fields in single-file mode when saving form metadata.
+	 *
+	 * @param array  $meta      Form metadata.
+	 * @param int    $form_id   Gravity Forms form ID.
+	 * @param string $meta_name Type of metadata being saved.
+	 * @return array
+	 */
+	public function enforce_single_upload( $meta, $form_id, $meta_name ) {
+		if ( 'display_meta' !== $meta_name || empty( $meta['fields'] ) ) {
+			return $meta;
+		}
+
+		foreach ( $meta['fields'] as $index => $field ) {
+			if ( true === rgar( $field, 'vwtgfImported' ) && 'fileupload' === rgar( $field, 'type' ) ) {
+				$meta['fields'][ $index ]['multipleFiles'] = false;
+			}
+		}
+
+		return $meta;
 	}
 
 	/**
@@ -71,23 +161,37 @@ class ConvertWebform {
 			/*
 			 * Convert HTML Array to a Gravity Forms Form Object.
 			 */
-			$form_meta = [];
+			$form_meta = [ 'vwtgfImported' => true ];
 			$fieldid   = 1;
 			$this->vwtgf_converter_create_gf_form_object( [ $html_array ], $form_meta, $fieldid );
 
+			foreach ( $form_meta['fields'] ?? [] as $index => $field ) {
+				if ( 'vtiger_POST_url' !== ( $field['adminLabel'] ?? '' ) ) {
+					$form_meta['fields'][ $index ]['vwtgfImported'] = true;
+					if ( 'hidden' === ( $field['type'] ?? '' ) && '' !== ( $field['defaultValue'] ?? '' ) ) {
+						$form_meta['fields'][ $index ]['vwtgfFixedDefault'] = true;
+					}
+				}
+			}
+
+			$fields = $form_meta['fields'] ?? [];
+			$values = array_column( $fields, 'defaultValue', 'adminLabel' );
+			if ( empty( $form_meta['title'] ) || empty( $values['vtiger_POST_url'] ) || '' === ( $values['publicid'] ?? '' ) ) {
+				wp_safe_redirect( admin_url( 'admin.php?page=vwtgf-converter&status=error' ) );
+				exit;
+			}
+
 			$form_id     = 0;
 			$form_exists = $this->vwtgf_converter_check_given_form_meta( $form_meta, $form_id );
+			if ( is_wp_error( $form_exists ) ) {
+				wp_safe_redirect( admin_url( 'admin.php?page=vwtgf-converter&status=error' ) );
+				exit;
+			}
 
 			if ( $form_exists ) {
-				/*
-				 * Update the existing form.
-				 */
-				$this->vwtgf_converter_update_existing_form( $form_meta, $form_id );
-
-				/*
-				 * Redirect to the admin page with the status updated.
-				 */
-				wp_safe_redirect( admin_url( 'admin.php?page=vwtgf-converter&status=updated' ) );
+				$result = $this->vwtgf_converter_update_existing_form( $form_meta, $form_id );
+				$status = true === $result ? 'updated' : 'error';
+				wp_safe_redirect( admin_url( 'admin.php?page=vwtgf-converter&status=' . $status ) );
 				exit;
 			} else {
 				/*
@@ -182,6 +286,7 @@ class ConvertWebform {
 				'class'      => [],
 				'data-label' => [],
 				'hidden'     => [],
+				'required'   => [],
 
 			],
 			'option'   => [
@@ -379,7 +484,7 @@ class ConvertWebform {
 						'id'           => $fieldid++,
 						'label'        => sanitize_text_field( $attr_name ),
 						'adminLabel'   => $this->sanitize_vtiger_field_name( $attr_name ),
-						'defaultValue' => ! empty( $attr_value ) ? sanitize_text_field( $attr_value ) : '',
+						'defaultValue' => sanitize_text_field( $attr_value ?? '' ),
 						'isRequired'   => array_key_exists( 'required', $attributes ),
 						'size'         => 'large',
 					];
@@ -456,7 +561,7 @@ class ConvertWebform {
 								'id'           => $fieldid++,
 								'label'        => sanitize_text_field( ! empty( $label ) ? $label : $attr_name ),
 								'adminLabel'   => $this->sanitize_vtiger_field_name( $attr_name ),
-								'defaultValue' => ! empty( $attr_value ) ? sanitize_text_field( $attr_value ) : '',
+								'defaultValue' => sanitize_text_field( $attr_value ?? '' ),
 								'isRequired'   => array_key_exists( 'required', $attributes ),
 								'size'         => 'large',
 							];
@@ -519,8 +624,9 @@ class ConvertWebform {
 							}
 
 							if ( 'checkbox' === $input_type ) {
-								$choices['text']     = sanitize_text_field( $label );
-								$choices['value']    = sanitize_text_field( $label );
+								$choices['text']       = sanitize_text_field( $label );
+								$choices['value']      = sanitize_text_field( $label );
+								$choices['isSelected'] = array_key_exists( 'checked', $attributes );
 								$field['choices'][0] = $choices;
 								unset( $field['label'] );
 							}
@@ -546,7 +652,7 @@ class ConvertWebform {
 								'id'           => $fieldid++,
 								'label'        => sanitize_text_field( ! empty( $label ) ? $label : $attr_name ),
 								'adminLabel'   => $this->sanitize_vtiger_field_name( $attr_name ),
-								'defaultValue' => ! empty( $attributes['text'] ) ? sanitize_text_field( $attributes['text'] ) : '',
+								'defaultValue' => sanitize_textarea_field( $element['text'] ?? '' ),
 								'isRequired'   => array_key_exists( 'required', $attributes ),
 								'size'         => 'large',
 							];
@@ -560,29 +666,32 @@ class ConvertWebform {
 							/*
 							 * Visible Select Field.
 							 */
-							$choices = [];
+							$choices     = [];
+							$placeholder = '';
 
 							/*
 							 *Iterates through all options and add them to the option Array.
 							*/
-							foreach ( $el_children as $option ) {
+							foreach ( $el_children as $index => $option ) {
 								$option_attributes = isset( $option['attributes'] ) && is_array( $option['attributes'] ) ? $option['attributes'] : [];
+								$text              = sanitize_text_field( $option['text'] ?? '' );
+
+								// Only an explicit empty value on the first option denotes a placeholder.
+								if ( ! $is_multiple && 0 === $index && '' === ( $option_attributes['value'] ?? null ) ) {
+									$placeholder = in_array( strtolower( $text ), [ 'select value', 'select an option' ], true )
+										? __( 'Select an option', 'vtiger-webform-to-gravity-forms-converter' )
+										: $text;
+									continue;
+								}
 
 								$choices[] = [
-									'text'       => isset( $option['text'] ) ? sanitize_text_field( $option['text'] ) : '',
-									'value'      => isset( $option_attributes['value'] ) ? sanitize_text_field( $option_attributes['value'] ) : '',
+									'text'       => $text,
+									'value'      => isset( $option_attributes['value'] ) ? sanitize_text_field( $option_attributes['value'] ) : $text,
 									'isSelected' => array_key_exists( 'selected', $option_attributes ),
 								];
 							}
 
-							$input_type  = 'multiselect';
-							$placeholder = '';
-
-							if ( ! $is_multiple ) {
-								$placeholder = isset( $choices[0]['text'] ) ? $choices[0]['text'] : '';
-								array_shift( $choices );
-								$input_type = 'select';
-							}
+							$input_type = $is_multiple ? 'multiselect' : 'select';
 
 									$field = [
 										'type'        => $input_type,
@@ -654,31 +763,30 @@ class ConvertWebform {
 	 * @param array $form_meta The Form Meta Array.
 	 * @param int   $form_id The Form ID.
 	 *
-	 * @return bool
+	 * @return bool|WP_Error Whether a unique target was found, or an error for ambiguous matches.
 	 */
 	public function vwtgf_converter_check_given_form_meta( $form_meta, &$form_id ) {
-		$exists = false;
-		$forms  = GFAPI::get_forms();
-
-		/*
-		 * Iterate through all forms and check if the form already exists.
-		 */
-		foreach ( $forms as $form ) {
+		$import = array_column( $form_meta['fields'], 'defaultValue', 'adminLabel' );
+		$match  = 0;
+		foreach ( GFAPI::get_forms( null, false ) as $form ) {
+			$values = [];
 			foreach ( $form['fields'] as $field ) {
-				if ( 'publicid' === $field->adminLabel ) {
-					$publicid = $field->defaultValue;
-					foreach ( $form_meta['fields'] as $meta_field ) {
-						if ( 'publicid' === $meta_field['adminLabel'] ) {
-							if ( $publicid === $meta_field['defaultValue'] ) {
-								$form_id = $form['id'];
-								return true;
-							}
-						}
-					}
+				if ( in_array( $field->adminLabel, [ 'publicid', 'vtiger_POST_url' ], true ) ) {
+					$values[ $field->adminLabel ] = $field->defaultValue;
 				}
 			}
+			if ( $import['publicid'] !== ( $values['publicid'] ?? null )
+				|| $import['vtiger_POST_url'] !== ( $values['vtiger_POST_url'] ?? null ) ) {
+				continue;
+			}
+			if ( 0 !== $match ) {
+				return new WP_Error( 'vwtgf_ambiguous_form', __( 'More than one matching Vtiger form was found.', 'vtiger-webform-to-gravity-forms-converter' ) );
+			}
+			$match = (int) $form['id'];
 		}
-		return $exists;
+
+		$form_id = $match;
+		return 0 !== $match;
 	}
 
 	/**
@@ -687,12 +795,17 @@ class ConvertWebform {
 	 * @param array $form_meta The Form Meta Array.
 	 * @param int   $form_id The Form ID.
 	 *
-	 * @return void
+	 * @return true|WP_Error
 	 */
 	public function vwtgf_converter_update_existing_form( $form_meta, $form_id ) {
-		$form           = GFAPI::get_form( $form_id );
-		$form['fields'] = $form_meta['fields'];
-		GFAPI::update_form( $form );
+		$form = GFAPI::get_form( $form_id );
+		if ( ! is_array( $form ) ) {
+			return new WP_Error( 'vwtgf_form_not_found', __( 'The form could not be loaded.', 'vtiger-webform-to-gravity-forms-converter' ) );
+		}
+
+		$form['fields']        = $form_meta['fields'];
+		$form['vwtgfImported'] = $form_meta['vwtgfImported'];
+		return GFAPI::update_form( $form );
 	}
 
 	/**
